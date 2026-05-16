@@ -27,6 +27,7 @@
 |---------|---------|
 | Generate Page | ![Generate](screenshots/generate.png) |
 | 3D Preview | ![Preview](screenshots/preview.png) |
+| Home page | ![Home](screenshots/home.png) |
 
 ---
 
