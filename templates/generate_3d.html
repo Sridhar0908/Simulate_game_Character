@@ -1,0 +1,543 @@
+{% extends "base.html" %}
+
+{% block title %}Generate 3D - 3D Character AI{% endblock %}
+
+{% block content %}
+<div class="app-page">
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="app-sidebar">
+            <div class="sidebar-header">
+                <h3>Your Generations</h3>
+            </div>
+
+            <div class="generations-list">
+                {% if generations %}
+                    {% for gen in generations %}
+                    <div class="generation-item {% if gen.status == 'processing' %}processing{% endif %}" 
+                         onclick="loadGeneration({{ gen.id }})">
+                        <div class="gen-thumbnail">
+                            <i class="fas fa-cube"></i>
+                        </div>
+                        <div class="gen-info">
+                            <p class="gen-prompt">{{ gen.prompt[:25] }}{% if gen.prompt|length > 25 %}...{% endif %}</p>
+                            <span class="gen-status status-{{ gen.status }}">
+                                {% if gen.status == 'processing' %}
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                {% endif %}
+                                {{ gen.status.title() }}
+                            </span>
+                        </div>
+                        <span class="gen-time">{{ gen.created_at.strftime('%H:%M') }}</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-cube"></i>
+                        <p>No generations yet</p>
+                    </div>
+                {% endif %}
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="app-main">
+            <div class="workspace">
+                <!-- Input Section -->
+                <div class="input-section">
+                    <div class="powered-by">
+                        <i class="fas fa-gift"></i>
+                        <span>100% FREE - Powered by Hunyuan3D-2</span>
+                    </div>
+
+                    <h2>What would you like to create?</h2>
+
+                    <div class="prompt-input-wrapper">
+                        <textarea id="promptInput" 
+                                  placeholder="Describe the 3D model... (e.g., 'a cute robot, white background, 3D render')"
+                                  rows="3"></textarea>
+                        <div class="input-actions">
+                            <button class="btn-icon" onclick="setRandomPrompt()" title="Random">
+                                <i class="fas fa-dice"></i>
+                            </button>
+                            <button class="btn-icon" onclick="clearPrompt()" title="Clear">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- PERFECT PROMPT SUGGESTIONS -->
+                    <div class="prompt-suggestions">
+                        <span>Perfect Prompts:</span>
+                        <button class="suggestion-chip" onclick="setPrompt('a cute robot, white background, 3D render, studio lighting, centered object')">🤖 Robot</button>
+                        <button class="suggestion-chip" onclick="setPrompt('a red apple, white background, 3D render, high detail, centered')">🍎 Apple</button>
+                        <button class="suggestion-chip" onclick="setPrompt('a wooden chair, white background, 3D render, furniture style')">🪑 Chair</button>
+                        <button class="suggestion-chip" onclick="setPrompt('a cactus plant, white background, 3D render, nature')">🌵 Cactus</button>
+                        <button class="suggestion-chip" onclick="setPrompt('a sports car, white background, 3D render, shiny')">🚗 Car</button>
+                    </div>
+
+                    <button class="btn btn-primary btn-generate" onclick="generate3D()">
+                        <i class="fas fa-wand-magic-sparkles"></i>
+                        Generate 3D Model (FREE)
+                    </button>
+
+                    <div class="free-features">
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Unlimited generations</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>GLB format output</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>No credit card required</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview Section -->
+                <div class="preview-section">
+                    <div class="preview-header">
+                        <h3>3D Preview</h3>
+                        <!-- DOWNLOAD BUTTON - FIXED -->
+                        <button id="downloadBtn" class="btn btn-outline btn-small" onclick="downloadCurrentModel()" style="display: none;">
+    <i class="fas fa-download"></i>
+    Download GLB
+</button>
+                    </div>
+
+                    <!-- 3D VIEWER CONTAINER -->
+                    <div class="preview-canvas" id="previewCanvas">
+                        <div class="canvas-placeholder" id="placeholder">
+                            <i class="fas fa-cube"></i>
+                            <p>Your 3D model will appear here</p>
+                            <small>Enter a prompt and click Generate</small>
+                        </div>
+                    </div>
+
+                    <div class="preview-controls">
+                        <div class="control-group">
+                            <label>Status:</label>
+                            <div class="status-display" id="statusDisplay">Ready</div>
+                        </div>
+                        <div class="control-group">
+                            <label>Info:</label>
+                            <span id="modelInfo">-</span>
+                        </div>
+                    </div>
+
+                    <div class="preview-info">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Drag to rotate • Scroll to zoom • Right-click to pan</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal" id="loadingModal">
+    <div class="modal-content">
+        <div class="loading-animation">
+            <div class="cube-grid">
+                <div class="cube"></div>
+                <div class="cube"></div>
+                <div class="cube"></div>
+                <div class="cube"></div>
+            </div>
+        </div>
+        <h3>Generating Your 3D Model</h3>
+        <p>Processing with Hunyuan3D-2 (100% FREE)...</p>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p class="time-estimate">Estimated time: 60-180 seconds</p>
+        <p class="free-note">💡 This is completely free!</p>
+    </div>
+</div>
+
+<!-- Three.js Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+<script>
+// ==========================================
+// GLOBAL VARIABLES
+// ==========================================
+let currentModelUrl = null;  // THIS IS THE KEY FIX!
+let currentModelFilename = null;
+let scene, camera, renderer, controls, currentModel;
+
+const randomPrompts = [
+    'a cute robot, white background, 3D render, studio lighting',
+    'a red apple, white background, 3D render, high detail',
+    'a wooden chair, white background, 3D render, furniture',
+    'a cactus plant, white background, 3D render, nature',
+    'a sports car, white background, 3D render, shiny',
+    'a cute dragon, white background, 3D render, fantasy',
+    'a coffee cup, white background, 3D render, ceramic',
+    'a mushroom, white background, 3D render, nature'
+];
+
+// ==========================================
+// PROMPT FUNCTIONS
+// ==========================================
+function setPrompt(text) {
+    const input = document.getElementById('promptInput');
+    if (input) input.value = text;
+}
+
+function clearPrompt() {
+    const input = document.getElementById('promptInput');
+    if (input) input.value = '';
+}
+
+function setRandomPrompt() {
+    const random = randomPrompts[Math.floor(Math.random() * randomPrompts.length)];
+    setPrompt(random);
+}
+
+// ==========================================
+// GENERATE 3D
+// ==========================================
+async function generate3D() {
+    const prompt = document.getElementById('promptInput').value.trim();
+    if (!prompt) {
+        alert('Please enter a description');
+        return;
+    }
+
+    // Reset viewer
+    resetViewer();
+    
+    document.getElementById('loadingModal').classList.add('active');
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('statusDisplay').textContent = 'Starting...';
+
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress += Math.random() * 8;
+        if (progress > 90) progress = 90;
+        document.getElementById('progressFill').style.width = progress + '%';
+    }, 3000);
+
+    try {
+        const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: prompt })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            checkGenerationStatus(data.generation_id, progressInterval);
+        } else {
+            throw new Error(data.error || 'Generation failed');
+        }
+    } catch (error) {
+        clearInterval(progressInterval);
+        document.getElementById('loadingModal').classList.remove('active');
+        document.getElementById('statusDisplay').textContent = 'Failed';
+        alert('Error: ' + error.message);
+    }
+}
+
+// ==========================================
+// CHECK STATUS
+// ==========================================
+async function checkGenerationStatus(genId, progressInterval) {
+    const checkInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/generation-status/${genId}`);
+            const data = await response.json();
+
+            document.getElementById('statusDisplay').textContent = data.status;
+
+            if (data.status === 'completed') {
+                clearInterval(checkInterval);
+                clearInterval(progressInterval);
+                document.getElementById('progressFill').style.width = '100%';
+                
+                setTimeout(() => {
+                    document.getElementById('loadingModal').classList.remove('active');
+                    show3DModel(data);  // CALL SHOW 3D MODEL
+                }, 500);
+                
+            } else if (data.status === 'failed') {
+                clearInterval(checkInterval);
+                clearInterval(progressInterval);
+                document.getElementById('loadingModal').classList.remove('active');
+                document.getElementById('statusDisplay').textContent = 'Failed';
+                alert('Generation failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error checking status:', error);
+        }
+    }, 4000);
+}
+
+// ==========================================
+// SHOW 3D MODEL - THIS IS THE KEY FIX!
+// ==========================================
+function show3DModel(data) {
+    console.log('🔥 show3DModel called:', data);
+    
+    const canvas = document.getElementById('previewCanvas');
+    const placeholder = document.getElementById('placeholder');
+    if (placeholder) placeholder.style.display = 'none';
+    
+    // Find the URL - check ALL possible locations
+    let glbUrl = null;
+    let filename = 'model.glb';
+    
+    if (data.model_urls) {
+        if (typeof data.model_urls === 'object') {
+            glbUrl = data.model_urls.glb || data.model_urls.filename || null;
+            if (data.model_urls.filename) filename = data.model_urls.filename;
+        } else if (typeof data.model_urls === 'string') {
+            glbUrl = data.model_urls;
+        }
+    }
+    
+    // If URL doesn't start with /, add it
+    if (glbUrl && !glbUrl.startsWith('/')) {
+        glbUrl = '/download-file/' + glbUrl;
+    }
+    
+    console.log('✅ URL found:', glbUrl);
+    console.log('✅ Filename:', filename);
+    
+    // 🔥 KEY FIX: Store URL directly on the button element
+    const downloadBtn = document.getElementById('downloadBtn');
+    if (downloadBtn) {
+        if (glbUrl) {
+            downloadBtn.style.display = 'inline-block';
+            downloadBtn.setAttribute('data-url', glbUrl);        // Store here!
+            downloadBtn.setAttribute('data-filename', filename); // Store here!
+            console.log('✅ URL stored on button');
+        } else {
+            downloadBtn.style.display = 'none';
+        }
+    }
+    
+    // Also try global as backup
+    window.currentModelUrl = glbUrl;
+    window.currentModelFilename = filename;
+    
+    // Update status
+    const statusDisplay = document.getElementById('statusDisplay');
+    if (statusDisplay) statusDisplay.textContent = 'Ready - Drag to rotate';
+    
+    const modelInfo = document.getElementById('modelInfo');
+    if (modelInfo && data.prompt) {
+        modelInfo.textContent = 'Prompt: ' + data.prompt.substring(0, 30) + '...';
+    }
+    
+    // Load 3D viewer
+    if (glbUrl) {
+        initThreeJS(glbUrl);
+    } else {
+        showFallbackPreview();
+    }
+}
+
+// ==========================================
+// DOWNLOAD FUNCTION - FIXED!
+// ==========================================
+function downloadCurrentModel() {
+    console.log('📥 Download clicked');
+    
+    // 🔥 KEY FIX: Read URL from button attribute (most reliable)
+    const downloadBtn = document.getElementById('downloadBtn');
+    let url = downloadBtn ? downloadBtn.getAttribute('data-url') : null;
+    let filename = downloadBtn ? downloadBtn.getAttribute('data-filename') : 'model.glb';
+    
+    console.log('📥 URL from button:', url);
+    
+    // Fallback to global if button attribute is empty
+    if (!url) {
+        url = window.currentModelUrl;
+        filename = window.currentModelFilename || 'model.glb';
+        console.log('📥 URL from global:', url);
+    }
+    
+    // If still no URL, show error
+    if (!url) {
+        console.error('❌ No URL found anywhere!');
+        alert('No model to download! Generate a model first.');
+        return;
+    }
+    
+    console.log('📥 Starting download of:', filename);
+    document.getElementById('statusDisplay').textContent = 'Downloading...';
+    
+    // Method 1: Try fetch + blob (best for cross-origin)
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.blob();
+        })
+        .then(blob => {
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            
+            setTimeout(() => {
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
+            }, 100);
+            
+            document.getElementById('statusDisplay').textContent = 'Downloaded!';
+            console.log('✅ Download success:', filename);
+        })
+        .catch(error => {
+            console.error('❌ Fetch failed:', error);
+            // Method 2: Direct link fallback
+            fallbackDownload(url, filename);
+        });
+}
+
+function fallbackDownload(url, filename) {
+    console.log('🔄 Trying fallback download...');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    document.getElementById('statusDisplay').textContent = 'Download started';
+}
+
+// ==========================================
+// RESET VIEWER
+// ==========================================
+function resetViewer() {
+    if (currentModel && scene) {
+        scene.remove(currentModel);
+        currentModel = null;
+    }
+    const placeholder = document.getElementById('placeholder');
+    if (placeholder) placeholder.style.display = 'flex';
+    
+    document.getElementById('downloadBtn').style.display = 'none';
+    currentModelUrl = null;
+    currentModelFilename = null;
+}
+
+// ==========================================
+// THREE.JS 3D VIEWER
+// ==========================================
+function initThreeJS(glbUrl) {
+    const container = document.getElementById('previewCanvas');
+    
+    // Remove old canvas
+    const oldCanvas = container.querySelector('canvas');
+    if (oldCanvas) oldCanvas.remove();
+    
+    // Scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+    
+    // Camera
+    const width = container.clientWidth;
+    const height = container.clientHeight || 400;
+    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    camera.position.set(0, 1, 3);
+    
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+    
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 5, 5);
+    scene.add(directionalLight);
+    
+    // Controls
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    
+    // Grid
+    const gridHelper = new THREE.GridHelper(5, 20, 0x444444, 0x222222);
+    gridHelper.position.y = -1;
+    scene.add(gridHelper);
+    
+    // Load GLB
+    const loader = new THREE.GLTFLoader();
+    loader.load(glbUrl, (gltf) => {
+        currentModel = gltf.scene;
+        
+        // Center and scale
+        const box = new THREE.Box3().setFromObject(currentModel);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 1.5 / maxDim;
+        
+        currentModel.scale.set(scale, scale, scale);
+        currentModel.position.sub(center.multiplyScalar(scale));
+        currentModel.position.y += 0.5;
+        
+        scene.add(currentModel);
+        document.getElementById('statusDisplay').textContent = 'Ready - Drag to rotate';
+        
+    }, undefined, (error) => {
+        console.error('Error loading GLB:', error);
+        showFallbackPreview();
+    });
+    
+    // Animation
+    function animate() {
+        requestAnimationFrame(animate);
+        if (controls) controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+    
+    // Resize handler
+    window.addEventListener('resize', () => {
+        const newWidth = container.clientWidth;
+        const newHeight = container.clientHeight || 400;
+        camera.aspect = newWidth / newHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(newWidth, newHeight);
+    });
+}
+
+function showFallbackPreview() {
+    const canvas = document.getElementById('previewCanvas');
+    canvas.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: white;">
+            <i class="fas fa-check-circle" style="font-size: 3rem; color: #4ade80;"></i>
+            <h4>Model Generated!</h4>
+            <button class="btn btn-success" onclick="downloadCurrentModel()">
+                <i class="fas fa-download"></i> Download GLB
+            </button>
+        </div>
+    `;
+}
+
+// ==========================================
+// KEYBOARD SHORTCUT
+// ==========================================
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'Enter') {
+        generate3D();
+    }
+});
+</script>
+{% endblock %}
