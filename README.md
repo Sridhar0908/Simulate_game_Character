@@ -29,6 +29,9 @@
 | 3D Preview | ![Preview](preview.png) |
 | Home page | ![Home](home.png) |
 
+## 🚀 Live Demo
+
+📹 [Watch Demo Video](https://github.com/Sridhar0908/Simulate_game_Character/releases/tag/v1.0-demo)
 ---
 
 ## 🛠️ Tech Stack
